@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>タレント・インフルエンサー CRM</title>
+    <?!= include('style') ?>
+  </head>
+  <body>
+    <!-- ナビゲーションバー -->
+    <nav class="navbar">
+      <div class="navbar-brand">
+        <span class="navbar-logo">&#9733;</span>
+        <span class="navbar-title">タレント CRM</span>
+      </div>
+      <div class="navbar-links">
+        <a href="#/" class="nav-link active" data-route="/">
+          <span class="nav-icon">&#128269;</span> 検索
+        </a>
+        <a href="#/deals" class="nav-link" data-route="/deals">
+          <span class="nav-icon">&#128188;</span> 案件
+        </a>
+        <a href="#/admin" class="nav-link" data-route="/admin">
+          <span class="nav-icon">&#9881;</span> 管理
+        </a>
+      </div>
+      <div class="navbar-user" id="navbar-user">
+        <span class="user-avatar" id="user-avatar">?</span>
+        <span class="user-name" id="user-name">読込中...</span>
+      </div>
+    </nav>
+
+    <!-- メインコンテナ -->
+    <div id="app" class="app-container">
+      <!-- ルーターがここにビューを注入 -->
+      <div class="loading-fullpage" id="initial-loader">
+        <div class="spinner"></div>
+        <p>読み込み中...</p>
+      </div>
+    </div>
+
+    <!-- トースト通知コンテナ -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- テンプレート群 -->
+    <?!= include('components') ?>
+
+    <!-- アプリケーション JS -->
+    <?!= include('app.js') ?>
+  </body>
+</html>

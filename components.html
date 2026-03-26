@@ -1,0 +1,554 @@
+<!-- ============================================================
+     components.html — テンプレート定義
+     タレント・インフルエンサー管理 CRM
+     ============================================================ -->
+
+<!-- ═══ 1. 検索ビュー ═══════════════════════════════════════ -->
+<template id="tpl-search-view">
+  <div class="two-column">
+    <!-- 左ペイン：検索フォーム＋結果 -->
+    <div class="left-pane">
+      <div class="card">
+        <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+          <div>
+            <h2 class="card-title" style="display:inline-block; margin-right:8px;">&#128269; 人物検索</h2>
+            <span class="text-sm text-muted" id="search-result-count"></span>
+          </div>
+          <button class="btn btn-sm btn-primary" id="btn-create-person">&#10133; 新規登録</button>
+        </div>
+        <form id="search-form" class="form-inline" style="flex-wrap:wrap;gap:10px;">
+          <div class="form-group" style="flex:2;min-width:200px;">
+            <input type="text" class="form-control" id="search-keyword"
+                   placeholder="フリーワード（名前 / ユーザー名 / タグ）">
+          </div>
+          <div class="form-group" style="min-width:130px;">
+            <select class="form-control" id="search-category">
+              <option value="">区分（全て）</option>
+              <option value="モデル">モデル</option>
+              <option value="インフルエンサー">インフルエンサー</option>
+              <option value="スポーツ選手・著名人">スポーツ選手・著名人</option>
+            </select>
+          </div>
+          <div class="form-group" style="min-width:120px;">
+            <select class="form-control" id="search-status">
+              <option value="">ステータス（全て）</option>
+              <option value="未着手">未着手</option>
+              <option value="アプローチ中">アプローチ中</option>
+              <option value="交渉中">交渉中</option>
+              <option value="契約済">契約済</option>
+              <option value="NG">NG</option>
+            </select>
+          </div>
+          <div class="form-group" style="min-width:100px;">
+            <select class="form-control" id="search-priority">
+              <option value="">優先度（全て）</option>
+              <option value="高">高</option>
+              <option value="中">中</option>
+              <option value="低">低</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">&#128269; 検索</button>
+        </form>
+        <!-- フォロワー数レンジスライダー -->
+        <div class="range-slider-wrap" id="follower-slider-wrap">
+          <div class="range-slider-header">
+            <span class="range-slider-label">📊 フォロワー数</span>
+            <span class="range-slider-values" id="follower-range-display">0 〜 1,000,000+</span>
+          </div>
+          <div class="range-slider-container">
+            <div class="range-slider-track"></div>
+            <div class="range-slider-fill" id="follower-slider-fill"></div>
+            <input type="range" id="follower-range-min" min="0" max="100" value="0" step="1">
+            <input type="range" id="follower-range-max" min="0" max="100" value="100" step="1">
+          </div>
+          <input type="hidden" id="search-followers-min">
+          <input type="hidden" id="search-followers-max">
+        </div>
+        <!-- クイックフィルタ -->
+        <div class="quick-filters" style="display:flex;gap:8px;margin-top:10px;">
+          <button class="btn btn-sm btn-outline quick-filter-btn" data-filter="overdue">🔴 期限切れ</button>
+          <button class="btn btn-sm btn-outline quick-filter-btn" data-filter="today">🟡 今日</button>
+          <button class="btn btn-sm btn-outline quick-filter-btn" data-filter="week">🟢 今週</button>
+        </div>
+      </div>
+
+      <!-- 結果テーブル -->
+      <div class="card" style="position:relative;">
+        <div id="search-loading" class="loading-overlay hidden">
+          <div class="spinner"></div>
+        </div>
+        <table class="data-table" id="search-results-table">
+          <thead>
+            <tr>
+              <th>名前</th>
+              <th>区分</th>
+              <th>ユーザー名</th>
+              <th>フォロワー数</th>
+              <th>ステータス</th>
+              <th>優先度</th>
+              <th>担当</th>
+              <th>次アクション日</th>
+            </tr>
+          </thead>
+          <tbody id="search-results-body">
+          </tbody>
+        </table>
+        <div id="search-empty" class="empty-state hidden">
+          <div class="empty-state-icon">&#128373;</div>
+          <div class="empty-state-text">検索結果がありません</div>
+        </div>
+        <div class="pagination" id="search-pagination" style="display:none;">
+          <div class="pagination-info" id="pagination-info"></div>
+          <div class="pagination-buttons">
+            <button class="btn btn-sm btn-secondary" id="btn-prev-page">← 前へ</button>
+            <button class="btn btn-sm btn-secondary" id="btn-next-page">次へ →</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右ペイン：人物詳細（初期は非表示） -->
+    <div class="right-pane hidden" id="person-detail-pane">
+    </div>
+  </div>
+</template>
+
+<!-- ═══ 2. 人物詳細パネル ═══════════════════════════════════ -->
+<template id="tpl-person-detail">
+  <div>
+    <div class="flex-between mb-16">
+      <h2 class="card-title" id="detail-person-name">—</h2>
+      <button class="close-btn" id="btn-close-detail" title="閉じる">&times;</button>
+    </div>
+
+    <!-- 基本情報 -->
+    <div class="detail-section">
+      <div class="detail-section-title">基本情報</div>
+      <div class="detail-grid" id="detail-basic-info">
+        <!-- JSで動的に描画 -->
+      </div>
+    </div>
+
+    <!-- CRM情報（編集可能） -->
+    <div class="detail-section">
+      <div class="detail-section-title">CRM情報</div>
+      <form id="person-crm-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">ステータス</label>
+            <select class="form-control" id="crm-status">
+              <option value="">未設定</option>
+              <option value="未着手">未着手</option>
+              <option value="アプローチ中">アプローチ中</option>
+              <option value="交渉中">交渉中</option>
+              <option value="契約済">契約済</option>
+              <option value="NG">NG</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">優先度</label>
+            <select class="form-control" id="crm-priority">
+              <option value="">未設定</option>
+              <option value="高">高</option>
+              <option value="中">中</option>
+              <option value="低">低</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">社内担当</label>
+            <input type="text" class="form-control" id="crm-owner">
+          </div>
+          <div class="form-group">
+            <label class="form-label">次アクション日</label>
+            <input type="date" class="form-control" id="crm-next-action-date">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">次アクション内容</label>
+          <input type="text" class="form-control" id="crm-next-action">
+        </div>
+        <div class="form-group">
+          <label class="form-label">メモ</label>
+          <textarea class="form-control" id="crm-memo" rows="2"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">&#128190; CRM情報を保存</button>
+      </form>
+    </div>
+
+    <!-- ログ追加 -->
+    <div class="detail-section">
+      <div class="detail-section-title">活動ログを追加</div>
+      <form id="add-log-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">種別</label>
+            <select class="form-control" id="log-type" required>
+              <option value="">選択...</option>
+              <option value="電話">電話</option>
+              <option value="メール">メール</option>
+              <option value="DM">DM</option>
+              <option value="面談">面談</option>
+              <option value="その他">その他</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">結果</label>
+            <input type="text" class="form-control" id="log-result" placeholder="例：返信あり">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">内容</label>
+          <textarea class="form-control" id="log-content" rows="2" required placeholder="活動の内容を入力..."></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">次アクション日</label>
+            <input type="date" class="form-control" id="log-next-date">
+          </div>
+          <div class="form-group">
+            <label class="form-label">次アクション内容</label>
+            <input type="text" class="form-control" id="log-next-content">
+          </div>
+        </div>
+        <button type="submit" class="btn btn-success btn-sm">&#10133; ログ追加</button>
+      </form>
+    </div>
+
+    <!-- タイムライン -->
+    <div class="detail-section">
+      <div class="detail-section-title">活動タイムライン</div>
+      <div id="person-timeline">
+        <div class="loading-inline"><div class="spinner"></div><span>読み込み中...</span></div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- ═══ 3. 案件一覧 ═════════════════════════════════════════ -->
+<template id="tpl-deal-list">
+  <div class="single-pane">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">&#128188; 案件一覧</h2>
+        <button class="btn btn-primary" id="btn-create-deal">&#10133; 新規案件</button>
+      </div>
+      <form id="deal-filter-form" class="form-inline mb-16">
+        <div class="form-group" style="min-width:200px;">
+          <input type="text" class="form-control" id="deal-keyword" placeholder="案件名 / クライアント">
+        </div>
+        <div class="form-group" style="min-width:130px;">
+          <select class="form-control" id="deal-status-filter">
+            <option value="">状態（全て）</option>
+            <option value="企画中">企画中</option>
+            <option value="提案中">提案中</option>
+            <option value="進行中">進行中</option>
+            <option value="完了">完了</option>
+            <option value="中止">中止</option>
+          </select>
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">&#128269; 絞り込み</button>
+      </form>
+      <div style="position:relative;">
+        <div id="deal-loading" class="loading-overlay hidden"><div class="spinner"></div></div>
+        <table class="data-table" id="deal-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>案件名</th>
+              <th>クライアント</th>
+              <th>状態</th>
+              <th>担当</th>
+              <th>納期</th>
+            </tr>
+          </thead>
+          <tbody id="deal-tbody"></tbody>
+        </table>
+        <div id="deal-empty" class="empty-state hidden">
+          <div class="empty-state-icon">&#128203;</div>
+          <div class="empty-state-text">案件がありません</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- ═══ 4. 案件詳細 ═════════════════════════════════════════ -->
+<template id="tpl-deal-detail">
+  <div class="single-pane">
+    <div class="flex-between mb-16">
+      <h2 class="card-title">
+        <a href="#/deals" style="color:var(--gray-500);">案件一覧</a>
+        <span style="color:var(--gray-400);margin:0 8px;">›</span>
+        <span id="deal-detail-name">—</span>
+      </h2>
+    </div>
+
+    <!-- 案件情報カード -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">案件情報</span>
+        <span class="badge badge-info" id="deal-detail-status">—</span>
+      </div>
+      <form id="deal-edit-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">案件名</label>
+            <input type="text" class="form-control" id="deal-ed-name" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label">クライアント</label>
+            <input type="text" class="form-control" id="deal-ed-client">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">状態</label>
+            <select class="form-control" id="deal-ed-status">
+              <option value="企画中">企画中</option>
+              <option value="提案中">提案中</option>
+              <option value="進行中">進行中</option>
+              <option value="完了">完了</option>
+              <option value="中止">中止</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">担当</label>
+            <input type="text" class="form-control" id="deal-ed-owner">
+          </div>
+          <div class="form-group">
+            <label class="form-label">納期</label>
+            <input type="date" class="form-control" id="deal-ed-deadline">
+          </div>
+        </div>
+      </form>
+    </div>
+
+    <!-- 候補者テーブル -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">&#127917; キャスティング候補</span>
+        <button class="btn btn-primary btn-sm" id="btn-add-person-to-deal">&#10133; 候補者追加</button>
+      </div>
+      <table class="data-table" id="casting-table">
+        <thead>
+          <tr>
+            <th>person_id</th>
+            <th>名前</th>
+            <th>候補ステータス</th>
+            <th>提示条件</th>
+            <th>NG理由</th>
+            <th>メモ</th>
+            <th>操作</th>
+          </tr>
+        </thead>
+        <tbody id="casting-tbody"></tbody>
+      </table>
+      <div id="casting-empty" class="empty-state hidden" style="padding:24px;">
+        <div class="empty-state-text">候補者がいません。「候補者追加」から人物を追加してください。</div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- ═══ 5. 管理画面 ═════════════════════════════════════════ -->
+<template id="tpl-admin-view">
+  <div class="single-pane">
+    <div class="card">
+      <div class="card-header">
+        <h2 class="card-title">&#9881; 管理画面</h2>
+      </div>
+
+      <div class="admin-actions">
+        <!-- Index 再構築 -->
+        <div class="admin-card">
+          <h3>&#128472; インデックス再構築</h3>
+          <p>3つの人物シートから 90_Index を再生成します。<br>person_id 未付番の行には自動的にIDを発行します。</p>
+          <button class="btn btn-primary" id="btn-rebuild-index">再構築を実行</button>
+        </div>
+        <!-- バリデーション -->
+        <div class="admin-card">
+          <h3>&#9989; データ検証</h3>
+          <p>person_id 重複・URL 重複・必須項目欠落をチェックします。</p>
+          <button class="btn btn-primary" id="btn-validate-data">検証を実行</button>
+        </div>
+        <!-- 初期セットアップ -->
+        <div class="admin-card">
+          <h3>&#128295; 初期セットアップ</h3>
+          <p>必要シートとヘッダを自動作成します。<br>初回のみ実行してください。</p>
+          <button class="btn btn-secondary" id="btn-setup-sheets">セットアップ実行</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- バリデーション結果 -->
+    <div class="card hidden" id="validation-results-card">
+      <div class="card-header">
+        <span class="card-title">検証結果</span>
+        <span class="badge" id="validation-count-badge"></span>
+      </div>
+      <table class="data-table" id="validation-table">
+        <thead>
+          <tr><th>種別</th><th>シート</th><th>行</th><th>詳細</th></tr>
+        </thead>
+        <tbody id="validation-tbody"></tbody>
+      </table>
+    </div>
+
+    <!-- Config 編集 -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">&#128272; 権限設定（Config）</span>
+      </div>
+      <form id="config-form">
+        <div class="form-group">
+          <label class="form-label">Admin メールアドレス（カンマ区切り）</label>
+          <textarea class="form-control" id="cfg-admin" rows="2" placeholder="admin1@example.com, admin2@example.com"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Editor メールアドレス（カンマ区切り）</label>
+          <textarea class="form-control" id="cfg-editor" rows="2" placeholder="editor1@example.com"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Viewer メールアドレス（カンマ区切り）</label>
+          <textarea class="form-control" id="cfg-viewer" rows="2" placeholder="viewer1@example.com"></textarea>
+        </div>
+        <button type="submit" class="btn btn-primary">&#128190; 設定を保存</button>
+      </form>
+    </div>
+  </div>
+</template>
+
+<!-- ═══ モーダル：案件作成 ═══════════════════════════════════ -->
+<template id="tpl-modal-create-deal">
+  <div class="modal-backdrop" id="modal-backdrop">
+    <div class="modal">
+      <div class="modal-title">&#10133; 新規案件作成</div>
+      <form id="create-deal-form">
+        <div class="form-group">
+          <label class="form-label">案件名 *</label>
+          <input type="text" class="form-control" id="new-deal-name" required>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">クライアント</label>
+            <input type="text" class="form-control" id="new-deal-client">
+          </div>
+          <div class="form-group">
+            <label class="form-label">担当</label>
+            <input type="text" class="form-control" id="new-deal-owner">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">状態</label>
+            <select class="form-control" id="new-deal-status">
+              <option value="企画中">企画中</option>
+              <option value="提案中">提案中</option>
+              <option value="進行中">進行中</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">納期</label>
+            <input type="date" class="form-control" id="new-deal-deadline">
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-deal">キャンセル</button>
+          <button type="submit" class="btn btn-primary">&#10133; 作成</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</template>
+
+<!-- ═══ モーダル：候補者追加（案件内検索） ═══════════════════ -->
+<template id="tpl-modal-add-casting">
+  <div class="modal-backdrop" id="modal-backdrop-casting">
+    <div class="modal" style="width:640px;">
+      <div class="modal-title">&#10133; 候補者を追加</div>
+      <form id="casting-search-form" class="form-inline mb-16">
+        <div class="form-group" style="flex:1;">
+          <input type="text" class="form-control" id="casting-search-kw" placeholder="名前やユーザー名で検索...">
+        </div>
+        <button type="submit" class="btn btn-primary btn-sm">&#128269;</button>
+      </form>
+      <div style="max-height:300px;overflow-y:auto;">
+        <table class="data-table" id="casting-search-table">
+          <thead><tr><th>名前</th><th>区分</th><th>ユーザー名</th><th></th></tr></thead>
+          <tbody id="casting-search-tbody"></tbody>
+        </table>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn btn-secondary" id="btn-cancel-casting">閉じる</button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<!-- ═══ モーダル：人物追加（インフルエンサー等） ═══════════════════ -->
+<template id="tpl-modal-add-person">
+  <div class="modal-backdrop" id="modal-backdrop-add-person">
+    <div class="modal">
+      <div class="modal-title">&#10133; 新規人物登録</div>
+      <form id="add-person-form">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">区分 *</label>
+            <select class="form-control" id="new-person-category" required>
+              <option value="">選択...</option>
+              <option value="モデル">モデル</option>
+              <option value="インフルエンサー">インフルエンサー</option>
+              <option value="スポーツ選手・著名人">スポーツ選手・著名人</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label class="form-label">名前 *</label>
+            <input type="text" class="form-control" id="new-person-name" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">ユーザー名</label>
+            <input type="text" class="form-control" id="new-person-username" placeholder="@username">
+          </div>
+          <div class="form-group">
+            <label class="form-label">フォロワー数</label>
+            <input type="number" class="form-control" id="new-person-followers" min="0">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">URL</label>
+          <input type="url" class="form-control" id="new-person-url" placeholder="https://...">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">サブカテゴリ</label>
+            <input type="text" class="form-control" id="new-person-subcategory">
+          </div>
+          <div class="form-group">
+            <label class="form-label">タグ</label>
+            <input type="text" class="form-control" id="new-person-tags" placeholder="カンマ区切りなど">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">メモ</label>
+          <textarea class="form-control" id="new-person-memo" rows="2"></textarea>
+        </div>
+        <hr style="margin: 16px 0; border: none; border-top: 1px solid var(--border-color, #e0e0e0);">
+        <div class="form-group">
+          <label class="form-label" style="display:flex; justify-content:space-between; align-items:center;">
+            追加項目（任意）
+            <button type="button" class="btn btn-sm btn-outline" id="btn-add-custom-field">＋項目を追加</button>
+          </label>
+          <div id="custom-fields-container"></div>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" id="btn-cancel-add-person">キャンセル</button>
+          <button type="submit" class="btn btn-primary">&#10133; 登録実行</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</template>

@@ -1,0 +1,13 @@
+# clasp push 対象外
+**/*.xlsx
+**/*.csv
+**/*.md
+**/*.json
+!appsscript.json
+.claspignore
+.clasp.json
+インフルエンサー/**
+モデル/**
+スポーツ選手、著名人/**
+node_modules/**
+.git/**
