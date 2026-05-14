@@ -55,7 +55,6 @@ var PERSON_COL_MAP = {
   優先度: 54,
   社内担当: 28,
   メモ: 59,
-  所属事務所: 60, // AgencyUpdateService で自動取得
 };
 
 /** 90_Index のヘッダ順 */
