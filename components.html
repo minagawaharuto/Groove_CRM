@@ -47,6 +47,86 @@
               <option value="低">低</option>
             </select>
           </div>
+          <!-- カテゴリ固有フィルター -->
+          <div id="category-filter-row" style="display:none; flex-basis:100%; gap:10px; align-items:center;">
+            <div id="filter-influencer" class="form-group" style="display:none; min-width:180px;">
+              <select class="form-control" id="search-tag">
+                <option value="">タグ（全て）</option>
+                <option value="TikToker">TikToker</option>
+                <option value="YouTuber">YouTuber</option>
+                <option value="vlog">vlog</option>
+                <option value="アイドル">アイドル</option>
+                <option value="アニメ・ゲーム">アニメ・ゲーム</option>
+                <option value="アーティスト">アーティスト</option>
+                <option value="インフルエンサー">インフルエンサー</option>
+                <option value="カップル">カップル</option>
+                <option value="クリエイター">クリエイター</option>
+                <option value="グルメ">グルメ</option>
+                <option value="コスプレ">コスプレ</option>
+                <option value="スタイル">スタイル</option>
+                <option value="タレント">タレント</option>
+                <option value="バーチャルYouTuber">バーチャルYouTuber</option>
+                <option value="フィード">フィード</option>
+                <option value="フリーアナウンサー">フリーアナウンサー</option>
+                <option value="ブランドディレクター">ブランドディレクター</option>
+                <option value="ヘルス">ヘルス</option>
+                <option value="ホテル・カフェ">ホテル・カフェ</option>
+                <option value="ママ">ママ</option>
+                <option value="ママ、主婦層">ママ、主婦層</option>
+                <option value="マルチタレント">マルチタレント</option>
+                <option value="マンガ・イラスト">マンガ・イラスト</option>
+                <option value="メンズアイドル">メンズアイドル</option>
+                <option value="メンズノンノモデル">メンズノンノモデル</option>
+                <option value="モデル">モデル</option>
+                <option value="モデル/カメラマン">モデル/カメラマン</option>
+                <option value="モデル/タレント">モデル/タレント</option>
+                <option value="モデル、インフルエンサー">モデル、インフルエンサー</option>
+                <option value="モデル、俳優">モデル、俳優</option>
+                <option value="ライフ">ライフ</option>
+                <option value="ライフスタイル">ライフスタイル</option>
+                <option value="ライフハック">ライフハック</option>
+                <option value="ライブ">ライブ</option>
+                <option value="リール">リール</option>
+                <option value="一人暮らし">一人暮らし</option>
+                <option value="丁寧な暮らし">丁寧な暮らし</option>
+                <option value="中高生人気IP系">中高生人気IP系</option>
+                <option value="俳優">俳優</option>
+                <option value="元アイドル">元アイドル</option>
+                <option value="元アナウンサー">元アナウンサー</option>
+                <option value="勉強/作業動画系">勉強/作業動画系</option>
+                <option value="勉強系">勉強系</option>
+                <option value="動画クリエイター">動画クリエイター</option>
+                <option value="千葉県グルメ">千葉県グルメ</option>
+                <option value="双子大食いYouTuber">双子大食いYouTuber</option>
+                <option value="大阪グルメ">大阪グルメ</option>
+                <option value="奈良県グルメ">奈良県グルメ</option>
+                <option value="女優">女優</option>
+                <option value="女優/タレント">女優/タレント</option>
+                <option value="女子会系">女子会系</option>
+                <option value="女性大食いYouTuber">女性大食いYouTuber</option>
+                <option value="妊婦・妊活">妊婦・妊活</option>
+                <option value="学生人気">学生人気</option>
+                <option value="実績あり">実績あり</option>
+                <option value="家族">家族</option>
+                <option value="文房具紹介系">文房具紹介系</option>
+                <option value="旅行">旅行</option>
+                <option value="男性大食いYouTuber">男性大食いYouTuber</option>
+                <option value="過去PR枠">過去PR枠</option>
+                <option value="関西グルメ">関西グルメ</option>
+                <option value="音楽">音楽</option>
+                <option value="食・ワイン">食・ワイン</option>
+              </select>
+            </div>
+            <div id="filter-model" class="form-group" style="display:none; align-items:center; gap:6px;">
+              <span class="text-sm text-muted">身長</span>
+              <input type="number" class="form-control" id="search-height-min"
+                     placeholder="下限(cm)" min="140" max="200" style="width:90px;">
+              <span class="text-sm text-muted">〜</span>
+              <input type="number" class="form-control" id="search-height-max"
+                     placeholder="上限(cm)" min="140" max="200" style="width:90px;">
+              <span class="text-sm text-muted">cm</span>
+            </div>
+          </div>
           <button type="submit" class="btn btn-primary">&#128269; 検索</button>
         </form>
         <!-- フォロワー数レンジスライダー -->
