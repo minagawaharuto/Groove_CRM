@@ -229,11 +229,51 @@
       });
     }
 
+    // 区分変更でカテゴリ固有フィルターを切り替え
+    var categorySelect = document.getElementById('search-category');
+    if (categorySelect) {
+      categorySelect.addEventListener('change', function() {
+        updateCategoryFilter(this.value);
+        state.searchPage = 1;
+        doSearch();
+      });
+    }
+
     // フォロワー数レンジスライダー
     initFollowerSlider();
 
     // 初期検索
     doSearch();
+  }
+
+  // ─── カテゴリ固有フィルター切り替え ──────────────────────────
+  function updateCategoryFilter(category) {
+    var row = document.getElementById('category-filter-row');
+    var filterInfluencer = document.getElementById('filter-influencer');
+    var filterModel = document.getElementById('filter-model');
+    if (!row || !filterInfluencer || !filterModel) return;
+
+    // 前のフィルター値をリセット
+    var tagEl = document.getElementById('search-tag');
+    var heightMinEl = document.getElementById('search-height-min');
+    var heightMaxEl = document.getElementById('search-height-max');
+    if (tagEl) tagEl.value = '';
+    if (heightMinEl) heightMinEl.value = '';
+    if (heightMaxEl) heightMaxEl.value = '';
+
+    if (category === 'インフルエンサー') {
+      row.style.display = 'flex';
+      filterInfluencer.style.display = 'block';
+      filterModel.style.display = 'none';
+    } else if (category === 'モデル') {
+      row.style.display = 'flex';
+      filterInfluencer.style.display = 'none';
+      filterModel.style.display = 'flex';
+    } else {
+      row.style.display = 'none';
+      filterInfluencer.style.display = 'none';
+      filterModel.style.display = 'none';
+    }
   }
 
   // ─── フォロワー数スライダー ──────────────────────────────
@@ -315,6 +355,9 @@
       priority:         document.getElementById('search-priority').value,
       followersMin:     document.getElementById('search-followers-min').value,
       followersMax:     document.getElementById('search-followers-max').value,
+      tag:              (document.getElementById('search-tag') || {}).value || '',
+      heightMin:        (document.getElementById('search-height-min') || {}).value || '',
+      heightMax:        (document.getElementById('search-height-max') || {}).value || '',
       nextActionFilter: state.nextActionFilter,
       page:             state.searchPage,
       pageSize:         state.searchPageSize
@@ -464,6 +507,10 @@
 
   // ─── 人物詳細（右ペイン） ──────────────────────────────
   function openPersonDetail(personId) {
+    if (!personId) {
+      showToast('person_id が設定されていません。管理画面でインデックスを再構築してください。', 'warning');
+      return;
+    }
     state.currentPersonId = personId;
 
     // 選択行のハイライト更新
