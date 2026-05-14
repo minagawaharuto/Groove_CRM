@@ -47,10 +47,10 @@
               <option value="低">低</option>
             </select>
           </div>
-          <!-- カテゴリ固有フィルター -->
-          <div id="category-filter-row" style="display:none; flex-basis:100%; gap:10px; align-items:center;">
-            <div id="filter-influencer" class="form-group" style="display:none; min-width:180px;">
-              <select class="form-control" id="search-tag">
+          <!-- カテゴリ固有フィルター（常時表示・区分に応じてdisabled切替） -->
+          <div id="category-filter-row" style="flex-basis:100%; gap:10px; align-items:center; display:flex;">
+            <div id="filter-influencer" class="form-group" style="min-width:180px;">
+              <select class="form-control" id="search-tag" disabled>
                 <option value="">タグ（全て）</option>
                 <option value="TikToker">TikToker</option>
                 <option value="YouTuber">YouTuber</option>
@@ -117,13 +117,13 @@
                 <option value="食・ワイン">食・ワイン</option>
               </select>
             </div>
-            <div id="filter-model" class="form-group" style="display:none; align-items:center; gap:6px;">
+            <div id="filter-model" class="form-group" style="display:flex; align-items:center; gap:6px;">
               <span class="text-sm text-muted">身長</span>
               <input type="number" class="form-control" id="search-height-min"
-                     placeholder="下限(cm)" min="140" max="200" style="width:90px;">
+                     placeholder="下限(cm)" min="140" max="200" style="width:90px;" disabled>
               <span class="text-sm text-muted">〜</span>
               <input type="number" class="form-control" id="search-height-max"
-                     placeholder="上限(cm)" min="140" max="200" style="width:90px;">
+                     placeholder="上限(cm)" min="140" max="200" style="width:90px;" disabled>
               <span class="text-sm text-muted">cm</span>
             </div>
           </div>

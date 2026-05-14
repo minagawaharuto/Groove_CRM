@@ -232,6 +232,7 @@
     // 区分変更でカテゴリ固有フィルターを切り替え
     var categorySelect = document.getElementById('search-category');
     if (categorySelect) {
+      updateCategoryFilter(categorySelect.value); // 初期状態を反映
       categorySelect.addEventListener('change', function() {
         updateCategoryFilter(this.value);
         state.searchPage = 1;
@@ -248,31 +249,28 @@
 
   // ─── カテゴリ固有フィルター切り替え ──────────────────────────
   function updateCategoryFilter(category) {
-    var row = document.getElementById('category-filter-row');
-    var filterInfluencer = document.getElementById('filter-influencer');
-    var filterModel = document.getElementById('filter-model');
-    if (!row || !filterInfluencer || !filterModel) return;
-
-    // 前のフィルター値をリセット
     var tagEl = document.getElementById('search-tag');
     var heightMinEl = document.getElementById('search-height-min');
     var heightMaxEl = document.getElementById('search-height-max');
-    if (tagEl) tagEl.value = '';
-    if (heightMinEl) heightMinEl.value = '';
-    if (heightMaxEl) heightMaxEl.value = '';
+    if (!tagEl || !heightMinEl || !heightMaxEl) return;
+
+    // 前のフィルター値をリセット
+    tagEl.value = '';
+    heightMinEl.value = '';
+    heightMaxEl.value = '';
 
     if (category === 'インフルエンサー') {
-      row.style.display = 'flex';
-      filterInfluencer.style.display = 'block';
-      filterModel.style.display = 'none';
+      tagEl.disabled = false;
+      heightMinEl.disabled = true;
+      heightMaxEl.disabled = true;
     } else if (category === 'モデル') {
-      row.style.display = 'flex';
-      filterInfluencer.style.display = 'none';
-      filterModel.style.display = 'flex';
+      tagEl.disabled = true;
+      heightMinEl.disabled = false;
+      heightMaxEl.disabled = false;
     } else {
-      row.style.display = 'none';
-      filterInfluencer.style.display = 'none';
-      filterModel.style.display = 'none';
+      tagEl.disabled = true;
+      heightMinEl.disabled = true;
+      heightMaxEl.disabled = true;
     }
   }
 
