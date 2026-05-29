@@ -1,6 +1,8 @@
 # 機密情報・認証情報（絶対にGitに含めない）
 service_account.json
 *.json.key
+.env
+django_backend/.env
 
 # Python仮想環境
 .venv/
