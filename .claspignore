@@ -11,3 +11,16 @@
 スポーツ選手、著名人/**
 node_modules/**
 .git/**
+<<<<<<< HEAD
+=======
+# .gs ファイルは .js と競合するため除外（.js を正とする）
+**/*.gs
+# Django バックエンド
+django_backend/**
+# Python 仮想環境
+.venv/**
+# その他
+*.png
+*.py
+requirements.txt
+>>>>>>> dev

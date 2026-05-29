@@ -7,11 +7,7 @@
 
 // ─── グローバル定数 ─────────────────────────────────────────
 /** @const {string} メインスプレッドシートID（デプロイ前に実ID へ差し替え） */
-<<<<<<< HEAD
-var SPREADSHEET_ID = "1MUwsyGvwo_oprknaJfVkwOxUaYyX7veKP8Gbdk-M-IA";
-=======
 var SPREADSHEET_ID = "14HAgG2wwQh54CiV0wONCjxI6VXA2Mt-tpmBv3YL_RUM";
->>>>>>> dev
 
 /** シート名定義 */
 var SHEET = {
@@ -59,10 +55,6 @@ var PERSON_COL_MAP = {
   優先度: 54,
   社内担当: 28,
   メモ: 59,
-<<<<<<< HEAD
-=======
-  所属事務所: 60, // AgencyUpdateService で自動取得
->>>>>>> dev
 };
 
 /** 90_Index のヘッダ順 */
@@ -77,21 +69,15 @@ var INDEX_HEADERS = [
   "所在地",
   "サブカテゴリ",
   "タグ",
-<<<<<<< HEAD
-=======
   "身長(cm)",
->>>>>>> dev
   "ステータス",
   "最終接触日",
   "次アクション日",
   "優先度",
   "担当（社内）",
-<<<<<<< HEAD
-=======
   "年齢",
   "メインプラットフォーム",
   "所属事務所",
->>>>>>> dev
   "source_sheet",
   "source_row",
   "_search_text",
@@ -116,12 +102,9 @@ var INDEX_TO_PERSON_COL = {
   次アクション日: 52,
   優先度: 54,
   "担当（社内）": 28,
-<<<<<<< HEAD
-=======
   年齢: -1,
   メインプラットフォーム: -1,
   所属事務所: -1,
->>>>>>> dev
 };
 
 /** 10_Deals ヘッダ */
@@ -396,11 +379,8 @@ function setupSheets() {
   if (!cfg) {
     cfg = ss.insertSheet(SHEET.CONFIG);
     cfg.appendRow(["key", "value"]);
-<<<<<<< HEAD
-=======
     cfg.appendRow(["instagram_access_token", ""]);
     cfg.appendRow(["instagram_business_account_id", ""]);
->>>>>>> dev
     cfg.appendRow(["admin_emails", ""]);
     cfg.appendRow(["editor_emails", ""]);
     cfg.appendRow(["viewer_emails", ""]);

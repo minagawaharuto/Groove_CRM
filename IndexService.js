@@ -21,61 +21,16 @@ function rebuildIndex() {
     var ss = getSpreadsheet();
     var indexSheet = getSheet(SHEET.INDEX);
 
-<<<<<<< HEAD
-    // ── 90_Index を全クリア（ヘッダは保持） ──
-    var lastRow = indexSheet.getLastRow();
-    if (lastRow > 1) {
-      indexSheet
-        .getRange(2, 1, lastRow - 1, INDEX_HEADERS.length)
-        .clearContent();
-      // 実行後に余分な行が残らないよう削除
-=======
     // ── 90_Index を全クリア ──
     var lastRow = indexSheet.getLastRow();
     if (lastRow > 1) {
       indexSheet
         .getRange(2, 1, lastRow - 1, indexSheet.getLastColumn() || INDEX_HEADERS.length)
         .clearContent();
->>>>>>> dev
       if (lastRow > 2) {
         indexSheet.deleteRows(2, lastRow - 1);
       }
     }
-<<<<<<< HEAD
-    // ヘッダがなければ書く
-    if (indexSheet.getLastRow() === 0) {
-      indexSheet.appendRow(INDEX_HEADERS);
-      indexSheet
-        .getRange(1, 1, 1, INDEX_HEADERS.length)
-        .setFontWeight("bold")
-        .setBackground("#4a90d9")
-        .setFontColor("#ffffff");
-    }
-
-    var allRows = [];
-
-    // ── 3人物シートを順に処理 ──
-    for (var s = 0; s < PERSON_SHEETS.length; s++) {
-      var sheetName = PERSON_SHEETS[s];
-      var sheet = ss.getSheetByName(sheetName);
-      if (!sheet) continue;
-
-      var data = sheet.getDataRange().getValues();
-      if (data.length < 2) continue;
-
-      var headers = data[0];
-      var personIdColIdx = PERSON_EXTRA_COL.PERSON_ID; // 0-indexed = 16
-
-      for (var i = 1; i < data.length; i++) {
-        // 空行スキップ（名前=3列目が空なら無視）
-        if (!data[i][2] || String(data[i][2]).trim() === "") continue;
-
-        // person_id が無ければ生成して人物シートにも書き込む
-        var personId =
-          personIdColIdx < data[i].length
-            ? String(data[i][personIdColIdx]).trim()
-            : "";
-=======
 
     // ヘッダを常に最新の INDEX_HEADERS で上書き（列順を保証）
     if (indexSheet.getLastRow() === 0) {
@@ -157,7 +112,6 @@ function rebuildIndex() {
 
         // person_id が無ければ生成して人物シートにも書き込む
         var personId = String(data[i][personIdColIdx] || "").trim();
->>>>>>> dev
         if (!personId) {
           personId = generateId("P");
           sheet.getRange(i + 1, personIdColIdx + 1).setValue(personId);
@@ -165,18 +119,12 @@ function rebuildIndex() {
         }
 
         // Index行を組み立て（INDEX_HEADERS の順序に従う）
-<<<<<<< HEAD
-        var row = _buildIndexRow(data[i], sheetName, i + 1);
-        allRows.push(row);
-      }
-=======
         var row = _buildIndexRow(data[i], sheetName, i + 1, category, headers);
         row[0] = personId; // person_id を確実にセット
         allRows.push(row);
         sheetCount++;
       }
       diagnostics.push(sheetName + ":" + sheetCount + "件");
->>>>>>> dev
     }
 
     // ── 一括書き込み ──
@@ -192,11 +140,7 @@ function rebuildIndex() {
     return response(
       true,
       { count: allRows.length },
-<<<<<<< HEAD
-      "インデックスを再構築しました（" + allRows.length + "件）。",
-=======
       "インデックスを再構築しました（" + allRows.length + "件）。[" + diagnostics.join(" / ") + "]"
->>>>>>> dev
     );
   } catch (e) {
     return errorResponse(e);
@@ -204,8 +148,6 @@ function rebuildIndex() {
 }
 
 /**
-<<<<<<< HEAD
-=======
  * シート名から区分（カテゴリ）を推定する
  * @param {string} sheetName
  * @return {string}
@@ -221,17 +163,10 @@ function _inferCategory(sheetName) {
 }
 
 /**
->>>>>>> dev
  * 人物シートの1行データから 90_Index 用の行配列を作る
  * @param {Array} rowData 人物シートの1行（0-indexed 配列）
  * @param {string} sheetName シート名
  * @param {number} sourceRow 1-indexed 行番号
-<<<<<<< HEAD
- * @return {Array}
- * @private
- */
-function _buildIndexRow(rowData, sheetName, sourceRow) {
-=======
  * @param {string=} category 区分（省略時はシート名から推定）
  * @param {Array=} sheetHeaders シートのヘッダー行（列名で動的ルックアップするため）
  * @return {Array}
@@ -247,17 +182,12 @@ function _buildIndexRow(rowData, sheetName, sourceRow, category, sheetHeaders) {
     }
   }
 
->>>>>>> dev
   var row = [];
   for (var h = 0; h < INDEX_HEADERS.length; h++) {
     var header = INDEX_HEADERS[h];
 
     if (header === "区分") {
-<<<<<<< HEAD
-      row.push(PERSON_CATEGORY[sheetName] || sheetName);
-=======
       row.push(category || PERSON_CATEGORY[sheetName] || sheetName);
->>>>>>> dev
       continue;
     }
     if (header === "source_sheet") {
@@ -269,11 +199,7 @@ function _buildIndexRow(rowData, sheetName, sourceRow, category, sheetHeaders) {
       continue;
     }
     if (header === "_search_text") {
-<<<<<<< HEAD
-      // 人物シートの全64列値をスペース区切りで結合（フリーワード検索用）
-=======
       // 人物シートの全列値をスペース区切りで結合（フリーワード検索用）
->>>>>>> dev
       var parts = [];
       for (var c = 0; c < rowData.length; c++) {
         var v = rowData[c];
@@ -284,21 +210,11 @@ function _buildIndexRow(rowData, sheetName, sourceRow, category, sheetHeaders) {
         }
       }
       // 区分も検索対象に含める
-<<<<<<< HEAD
-      parts.push(PERSON_CATEGORY[sheetName] || sheetName);
-=======
       parts.push(category || PERSON_CATEGORY[sheetName] || sheetName);
->>>>>>> dev
       row.push(parts.join(" "));
       continue;
     }
 
-<<<<<<< HEAD
-    // INDEX_TO_PERSON_COL でマッピング
-    if (INDEX_TO_PERSON_COL.hasOwnProperty(header)) {
-      var colIdx = INDEX_TO_PERSON_COL[header];
-      var val = colIdx < rowData.length ? rowData[colIdx] : "";
-=======
     // 列ルックアップ: シートヘッダー優先 → INDEX_TO_PERSON_COL フォールバック
     var colIdx = -1;
     if (sheetHeaderMap.hasOwnProperty(header)) {
@@ -309,7 +225,6 @@ function _buildIndexRow(rowData, sheetName, sourceRow, category, sheetHeaders) {
 
     if (colIdx !== -1 && colIdx < rowData.length) {
       var val = rowData[colIdx];
->>>>>>> dev
       row.push(val instanceof Date ? formatDate(val) : val);
     } else {
       row.push("");
@@ -364,8 +279,6 @@ function searchPeople(params) {
     // Index データをロード（キャッシュ優先）
     var indexData = _loadIndexData();
 
-<<<<<<< HEAD
-=======
     // person_id のない行を除外（rebuildIndex 未実行の行を安全にスキップ）
     var validIndexData = [];
     for (var vi = 0; vi < indexData.length; vi++) {
@@ -375,7 +288,6 @@ function searchPeople(params) {
     }
     indexData = validIndexData;
 
->>>>>>> dev
     // ── フリーワード AND 部分一致 ──
     var keyword = String(params.keyword || "").trim();
     var keywords = keyword ? keyword.split(/\s+/) : [];
@@ -395,11 +307,8 @@ function searchPeople(params) {
     if (params.status) filters["ステータス"] = params.status;
     if (params.priority) filters["優先度"] = params.priority;
     if (params.owner) filters["担当（社内）"] = params.owner;
-<<<<<<< HEAD
-=======
     if (params.tag) filters["タグ"] = params.tag;
     if (params.platform) filters["メインプラットフォーム"] = params.platform;
->>>>>>> dev
 
     var filterCols = {};
     var filterKeys = Object.keys(filters);
@@ -417,8 +326,6 @@ function searchPeople(params) {
       : NaN;
     var followersColIdx = INDEX_HEADERS.indexOf("フォロワー数");
 
-<<<<<<< HEAD
-=======
     // ── 身長フィルタ ──
     var heightMin = params.heightMin ? parseFloat(params.heightMin) : NaN;
     var heightMax = params.heightMax ? parseFloat(params.heightMax) : NaN;
@@ -433,7 +340,6 @@ function searchPeople(params) {
     var agency = params.agency || '';
     var agencyColIdx = INDEX_HEADERS.indexOf("所属事務所");
 
->>>>>>> dev
     // ── 次アクション日フィルタ ──
     var nextActionFilter = params.nextActionFilter || "";
     var nextActionColIdx = INDEX_HEADERS.indexOf("次アクション日");
@@ -474,11 +380,6 @@ function searchPeople(params) {
       for (var fc = 0; fc < filterColKeys.length; fc++) {
         var colI = parseInt(filterColKeys[fc], 10);
         var expected = filterCols[colI];
-<<<<<<< HEAD
-        if (String(row[colI]).indexOf(expected) === -1) {
-          passFilter = false;
-          break;
-=======
         var colName = INDEX_HEADERS[colI];
         var cellValue = String(row[colI]);
 
@@ -495,7 +396,6 @@ function searchPeople(params) {
             passFilter = false;
             break;
           }
->>>>>>> dev
         }
       }
       if (!passFilter) continue;
@@ -520,8 +420,6 @@ function searchPeople(params) {
         if (!_passNextActionFilter(dateVal, nextActionFilter, today)) continue;
       }
 
-<<<<<<< HEAD
-=======
       // 身長フィルタ（モデル区分のみ値が存在する）
       if (heightColIdx !== -1 && (!isNaN(heightMin) || !isNaN(heightMax))) {
         var hVal = parseFloat(String(row[heightColIdx]).replace(/[,，]/g, ""));
@@ -546,7 +444,6 @@ function searchPeople(params) {
         if (agency === '無' && agencyVal) continue;
       }
 
->>>>>>> dev
       matched.push(row);
     }
 
