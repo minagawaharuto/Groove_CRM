@@ -308,6 +308,7 @@ function searchPeople(params) {
     if (params.priority) filters["優先度"] = params.priority;
     if (params.owner) filters["担当（社内）"] = params.owner;
     if (params.tag) filters["タグ"] = params.tag;
+    if (params.platform) filters["メインプラットフォーム"] = params.platform;
 
     var filterCols = {};
     var filterKeys = Object.keys(filters);
@@ -329,6 +330,15 @@ function searchPeople(params) {
     var heightMin = params.heightMin ? parseFloat(params.heightMin) : NaN;
     var heightMax = params.heightMax ? parseFloat(params.heightMax) : NaN;
     var heightColIdx = INDEX_HEADERS.indexOf("身長(cm)");
+
+    // ── 年齢フィルタ ──
+    var ageMin = params.ageMin ? parseInt(params.ageMin, 10) : NaN;
+    var ageMax = params.ageMax ? parseInt(params.ageMax, 10) : NaN;
+    var ageColIdx = INDEX_HEADERS.indexOf("年齢");
+
+    // ── 事務所フィルタ ──
+    var agency = params.agency || '';
+    var agencyColIdx = INDEX_HEADERS.indexOf("所属事務所");
 
     // ── 次アクション日フィルタ ──
     var nextActionFilter = params.nextActionFilter || "";
@@ -370,9 +380,22 @@ function searchPeople(params) {
       for (var fc = 0; fc < filterColKeys.length; fc++) {
         var colI = parseInt(filterColKeys[fc], 10);
         var expected = filterCols[colI];
-        if (String(row[colI]).indexOf(expected) === -1) {
-          passFilter = false;
-          break;
+        var colName = INDEX_HEADERS[colI];
+        var cellValue = String(row[colI]);
+
+        if (colName === "タグ") {
+          // タグはカンマまたは読点で分割して完全一致を判定
+          var tags = cellValue.split(/[,、]/).map(function(t) { return t.trim(); });
+          if (tags.indexOf(expected) === -1) {
+            passFilter = false;
+            break;
+          }
+        } else {
+          // その他は部分一致
+          if (cellValue.indexOf(expected) === -1) {
+            passFilter = false;
+            break;
+          }
         }
       }
       if (!passFilter) continue;
@@ -403,6 +426,22 @@ function searchPeople(params) {
         if (isNaN(hVal)) hVal = 0;
         if (!isNaN(heightMin) && hVal < heightMin) continue;
         if (!isNaN(heightMax) && hVal > heightMax) continue;
+      }
+
+      // 年齢フィルタ（'28歳' → 28 に変換）
+      if (ageColIdx !== -1 && (!isNaN(ageMin) || !isNaN(ageMax))) {
+        var ageStr = String(row[ageColIdx]).replace(/[歳才]/g, '').trim();
+        var aVal = parseInt(ageStr, 10);
+        if (isNaN(aVal)) aVal = 0;
+        if (!isNaN(ageMin) && aVal < ageMin) continue;
+        if (!isNaN(ageMax) && aVal > ageMax) continue;
+      }
+
+      // 事務所フィルタ
+      if (agency && agencyColIdx !== -1) {
+        var agencyVal = String(row[agencyColIdx]).trim();
+        if (agency === '有' && !agencyVal) continue;
+        if (agency === '無' && agencyVal) continue;
       }
 
       matched.push(row);

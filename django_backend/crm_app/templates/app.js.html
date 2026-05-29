@@ -15,7 +15,8 @@
     searchPageSize: 50,
     currentDealId: null,
     nextActionFilter: '',
-    selectedPeople: [] // 選択された人物データの配列
+    checkedPeople: {},
+    showCheckedOnly: false
   };
 
   // ─── 初期化 ────────────────────────────────────────────
@@ -101,24 +102,44 @@
 
   // ─── API ラッパー ──────────────────────────────────────
   function callServer(fnName, args, successCb, errorCb) {
-    var runner = google.script.run
-      .withSuccessHandler(function(result) {
-        if (successCb) successCb(result);
-      })
-      .withFailureHandler(function(e) {
-        console.error('Server error:', e);
-        showToast(e.message || 'サーバーエラーが発生しました', 'error');
-        if (errorCb) errorCb(e);
-      });
-
-    // args を展開して関数を呼び出す
-    switch (args.length) {
-      case 0: runner[fnName](); break;
-      case 1: runner[fnName](args[0]); break;
-      case 2: runner[fnName](args[0], args[1]); break;
-      case 3: runner[fnName](args[0], args[1], args[2]); break;
-      default: runner[fnName](args[0]); break;
+    var payload = { args: args };
+    
+    // CSRFトークン取得
+    function getCookie(name) {
+        var cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            var cookies = document.cookie.split(';');
+            for (var i = 0; i < cookies.length; i++) {
+                var cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
     }
+    var csrftoken = getCookie('csrftoken');
+
+    fetch('/api/' + fnName, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrftoken || ''
+      },
+      body: JSON.stringify(payload)
+    })
+    .then(function(response) {
+      return response.json();
+    })
+    .then(function(result) {
+      if (successCb) successCb(result);
+    })
+    .catch(function(e) {
+      console.error('Server error:', e);
+      showToast(e.message || 'サーバーエラーが発生しました', 'error');
+      if (errorCb) errorCb(e);
+    });
   }
 
   // ─── トースト ──────────────────────────────────────────
@@ -195,6 +216,50 @@
   function initSearchView() {
     var btnCreatePerson = document.getElementById('btn-create-person');
     if (btnCreatePerson) btnCreatePerson.addEventListener('click', openAddPersonModal);
+    
+    // 一括AI補完ボタンの初期化
+    initBatchEnrich();
+
+    // AI検索ボタン
+    var btnAiSearch = document.getElementById('btn-ai-search');
+    var aiInput = document.getElementById('ai-search-input');
+    if (btnAiSearch && aiInput) {
+      var runAiSearch = function() {
+        var query = aiInput.value.trim();
+        if (!query) return;
+        var origText = btnAiSearch.innerHTML;
+        btnAiSearch.innerHTML = '⏳ 解析中...';
+        btnAiSearch.disabled = true;
+        callServer('aiSearchPeople', [query], function(res) {
+          btnAiSearch.innerHTML = origText;
+          btnAiSearch.disabled = false;
+          if (!res.success) {
+            showToast('AI検索エラー: ' + res.message, 'error');
+            return;
+          }
+          var p = res.data;
+          // 検索フォームの各フィールドにAIが解析した値を反映
+          if (p.keyword !== undefined)      document.getElementById('search-keyword').value = p.keyword;
+          if (p.category !== undefined)     setSelectValue('search-category', p.category);
+          if (p.status !== undefined)       setSelectValue('search-status', p.status);
+          if (p.priority !== undefined)     setSelectValue('search-priority', p.priority);
+          // フォロワー数スライダーの hidden input に直接値をセット
+          if (p.followersMin !== undefined && p.followersMin !== '') {
+            document.getElementById('search-followers-min').value = p.followersMin;
+          }
+          if (p.followersMax !== undefined && p.followersMax !== '') {
+            document.getElementById('search-followers-max').value = p.followersMax;
+          }
+          state.searchPage = 1;
+          doSearch();
+          showToast('AIが条件を解析して検索しました 🎯', 'success');
+        });
+      };
+      btnAiSearch.addEventListener('click', runAiSearch);
+      aiInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') runAiSearch();
+      });
+    }
 
     var form = document.getElementById('search-form');
     if (!form) return;
@@ -208,12 +273,6 @@
       for (var q = 0; q < qfBtns.length; q++) qfBtns[q].classList.remove('active');
       doSearch();
     });
-
-    // AI検索ボタン
-    var btnAiSearch = document.getElementById('btn-ai-search');
-    if (btnAiSearch) {
-      btnAiSearch.addEventListener('click', runAiSearch);
-    }
 
     // クイックフィルタボタン
     var quickBtns = document.querySelectorAll('.quick-filter-btn');
@@ -236,160 +295,232 @@
       });
     }
 
-    // 区分変更でカテゴリ固有フィルターを切り替え
-    var categorySelect = document.getElementById('search-category');
-    if (categorySelect) {
-      updateCategoryFilter(categorySelect.value); // 初期状態を反映
-      categorySelect.addEventListener('change', function() {
-        updateCategoryFilter(this.value);
-        state.searchPage = 1;
-        doSearch();
+    // 詳細フィルター初期化
+    initAdvancedFilters();
+
+    // 選択のみ表示トグル
+    var btnToggleChecked = document.getElementById('btn-toggle-checked');
+    if (btnToggleChecked) {
+      btnToggleChecked.addEventListener('click', function() {
+        state.showCheckedOnly = !state.showCheckedOnly;
+        if (state.showCheckedOnly) {
+          this.classList.add('active');
+          this.style.backgroundColor = '#eef2ff';
+        } else {
+          this.classList.remove('active');
+          this.style.backgroundColor = '';
+        }
+        applyCheckedFilter();
       });
     }
 
-    // CSV出力ボタン
-    var btnExport = document.getElementById('btn-export-csv');
-    if (btnExport) btnExport.addEventListener('click', exportSelectedToCSV);
+    // CSV出力
+    var btnExportCsv = document.getElementById('btn-export-csv');
+    if (btnExportCsv) {
+      btnExportCsv.addEventListener('click', exportCheckedToCsv);
+    }
+
+    // 全選択チェックボックス
+    var checkAll = document.getElementById('search-check-all');
+    if (checkAll) {
+      checkAll.addEventListener('change', function(e) {
+        var isChecked = e.target.checked;
+        var checkboxes = document.querySelectorAll('.row-checkbox');
+        for (var i = 0; i < checkboxes.length; i++) {
+          checkboxes[i].checked = isChecked;
+          var pid = checkboxes[i].value;
+          if (isChecked) {
+             // We need the full row data, but from where?
+             // It's attached as property to the row element or fetched from current page data.
+             // Best is to store current page data in a variable `currentPageData` or attach it to the tr.
+             var tr = checkboxes[i].closest('tr');
+             state.checkedPeople[pid] = tr.rowData;
+          } else {
+             delete state.checkedPeople[pid];
+          }
+        }
+      });
+    }
 
     // 初期検索
     doSearch();
   }
 
-  // ─── カテゴリ固有フィルター切り替え ──────────────────────────
-  function updateCategoryFilter(category) {
-    var tagEl = document.getElementById('search-tag');
-    var heightMinEl = document.getElementById('search-height-min');
-    var heightMaxEl = document.getElementById('search-height-max');
-    if (!tagEl || !heightMinEl || !heightMaxEl) return;
-
-    // 前のフィルター値をリセット
-    tagEl.value = '';
-    heightMinEl.value = '';
-    heightMaxEl.value = '';
-
-    if (category === 'インフルエンサー') {
-      tagEl.disabled = false;
-      heightMinEl.disabled = true;
-      heightMaxEl.disabled = true;
-    } else if (category === 'モデル') {
-      tagEl.disabled = true;
-      heightMinEl.disabled = false;
-      heightMaxEl.disabled = false;
-    } else {
-      tagEl.disabled = true;
-      heightMinEl.disabled = true;
-      heightMaxEl.disabled = true;
+  function applyCheckedFilter() {
+    var rows = document.querySelectorAll('#search-results-body tr');
+    for (var i = 0; i < rows.length; i++) {
+      var pid = rows[i].getAttribute('data-person-id');
+      if (state.showCheckedOnly) {
+        rows[i].style.display = state.checkedPeople[pid] ? '' : 'none';
+      } else {
+        rows[i].style.display = '';
+      }
     }
   }
 
-  function _toFollowerVal(val) {
-    var n = parseFloat(val);
-    if (isNaN(n) || val === '') return '';
-    return String(Math.round(n * 10000));
-  }
-
-  /** AI検索実行 */
-  function runAiSearch() {
-    var kwInput = document.getElementById('search-keyword');
-    var userInput = kwInput.value.trim();
-    if (!userInput) {
-      showToast('AI検索をしたい文章をキーワード欄に入力してください。', 'info');
+  function exportCheckedToCsv() {
+    var pids = Object.keys(state.checkedPeople);
+    if (pids.length === 0) {
+      showToast('出力するデータが選択されていません', 'warning');
       return;
     }
-
-    var btn = document.getElementById('btn-ai-search');
-    var originalText = btn.textContent;
-    btn.disabled = true;
-    btn.textContent = '✨ 解析中...';
-
-    callServer('parseSearchQueryWithAI', [userInput], function(res) {
-      btn.disabled = false;
-      btn.textContent = originalText;
-
-      if (!res.success) {
-        showToast(res.message, 'error');
-        return;
-      }
-
-      var p = res.data;
-      console.log('AI Parsed Params:', p);
-
-      // 解析結果をUIにセット
-      if (p.category) setSelectValue('search-category', p.category);
-      if (p.platform) setSelectValue('search-platform', p.platform);
-      if (p.agency)   setSelectValue('search-agency', p.agency);
-      
-      if (p.keyword)  setInputValue('search-keyword', p.keyword);
-      if (p.location) setInputValue('search-location', p.location);
-      if (p.owner)    setInputValue('search-owner', p.owner);
-      
-      // 数値系 (万単位に変換)
-      if (p.followersMin) setInputValue('search-followers-min-input', (p.followersMin / 10000).toFixed(1));
-      if (p.followersMax) setInputValue('search-followers-max-input', (p.followersMax / 10000).toFixed(1));
-      
-      if (p.ageMin) setInputValue('search-age-min', p.ageMin);
-      if (p.ageMax) setInputValue('search-age-max', p.ageMax);
-      
-      if (p.tag) {
-        // タグがプルダウンにあるか確認
-        var tagSel = document.getElementById('search-tag');
-        if (tagSel) {
-          setSelectValue('search-tag', p.tag);
-          // プルダウンにない場合はキーワードに追加
-          if (tagSel.value !== p.tag) {
-             var currentKw = document.getElementById('search-keyword').value;
-             setInputValue('search-keyword', (currentKw ? currentKw + ' ' : '') + p.tag);
-          }
-        }
-      }
-
-      showToast('AIが条件を自動入力しました。', 'success');
-      
-      // 区分に応じた表示切り替え
-      updateCategoryFilter(document.getElementById('search-category').value);
-      
-      // 検索実行
-      state.searchPage = 1;
-      doSearch();
-    }, function(err) {
-      btn.disabled = false;
-      btn.textContent = originalText;
+    
+    // ヘッダー生成
+    var headers = ['person_id', '区分', '名前', 'ユーザー名', 'フォロワー数', 'ステータス', '優先度', '担当（社内）', '次アクション日'];
+    var csvContent = "\uFEFF"; // BOM
+    csvContent += headers.join(',') + '\n';
+    
+    pids.forEach(function(pid) {
+      var r = state.checkedPeople[pid];
+      if (!r) return;
+      var row = [
+        r.person_id || '',
+        r['区分'] || '',
+        r['名前'] || '',
+        r['ユーザー名'] || '',
+        r['フォロワー数'] || '',
+        r['ステータス'] || '',
+        r['優先度'] || '',
+        r['担当（社内）'] || '',
+        r['次アクション日'] || ''
+      ];
+      // escape CSV values
+      var escapedRow = row.map(function(val) {
+        var str = String(val).replace(/"/g, '""');
+        if (str.search(/("|,|\n)/g) >= 0) { str = '"' + str + '"'; }
+        return str;
+      });
+      csvContent += escapedRow.join(',') + '\n';
     });
+    
+    var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    var link = document.createElement('a');
+    var url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    var d = new Date();
+    var dateStr = d.getFullYear() + ('0'+(d.getMonth()+1)).slice(-2) + ('0'+d.getDate()).slice(-2);
+    link.setAttribute('download', 'crm_export_' + dateStr + '.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   }
 
-  function setSelectValue(id, val) {
-    var el = document.getElementById(id);
-    if (el) el.value = val || '';
+  // ─── 詳細フィルター（フォロワー数・年齢 プルダウン + 手入力） ──────
+  function initAdvancedFilters() {
+    // フォロワー数：プルダウン変更時にhidden inputへ反映
+    var fMinPreset  = document.getElementById('search-followers-min-preset');
+    var fMaxPreset  = document.getElementById('search-followers-max-preset');
+    var fMinInput   = document.getElementById('search-followers-min-input');
+    var fMaxInput   = document.getElementById('search-followers-max-input');
+    var fHiddenMin  = document.getElementById('search-followers-min');
+    var fHiddenMax  = document.getElementById('search-followers-max');
+
+    function syncFollowers() {
+      // 手入力があれば優先、なければプルダウン値
+      fHiddenMin.value = (fMinInput && fMinInput.value !== '') ? fMinInput.value : (fMinPreset ? fMinPreset.value : '');
+      fHiddenMax.value = (fMaxInput && fMaxInput.value !== '') ? fMaxInput.value : (fMaxPreset ? fMaxPreset.value : '');
+    }
+
+    // プルダウン変更で手入力をリセット
+    if (fMinPreset) fMinPreset.addEventListener('change', function() {
+      if (fMinInput) fMinInput.value = '';
+      syncFollowers();
+      state.searchPage = 1; doSearch();
+    });
+    if (fMaxPreset) fMaxPreset.addEventListener('change', function() {
+      if (fMaxInput) fMaxInput.value = '';
+      syncFollowers();
+      state.searchPage = 1; doSearch();
+    });
+    // 手入力変更でプルダウンをリセット
+    if (fMinInput) fMinInput.addEventListener('input', function() {
+      if (fMinPreset && fMinInput.value !== '') fMinPreset.value = '';
+      syncFollowers();
+    });
+    if (fMaxInput) fMaxInput.addEventListener('input', function() {
+      if (fMaxPreset && fMaxInput.value !== '') fMaxPreset.value = '';
+      syncFollowers();
+    });
+
+    // 年齢：同様
+    var aMinPreset  = document.getElementById('search-age-min-preset');
+    var aMaxPreset  = document.getElementById('search-age-max-preset');
+    var aMinInput   = document.getElementById('search-age-min-input');
+    var aMaxInput   = document.getElementById('search-age-max-input');
+
+    if (aMinPreset) aMinPreset.addEventListener('change', function() {
+      if (aMinInput) aMinInput.value = '';
+      state.searchPage = 1; doSearch();
+    });
+    if (aMaxPreset) aMaxPreset.addEventListener('change', function() {
+      if (aMaxInput) aMaxInput.value = '';
+      state.searchPage = 1; doSearch();
+    });
+
+    // 居住地・担当窓口・プラットフォーム・事務所 は form submit で拾う（即時検索は不要）
   }
-  function setInputValue(id, val) {
-    var el = document.getElementById(id);
-    if (el) el.value = val || '';
+
+  function getAdvancedFilterValues() {
+    // フォロワー数
+    var fMinPreset = document.getElementById('search-followers-min-preset');
+    var fMaxPreset = document.getElementById('search-followers-max-preset');
+    var fMinInput  = document.getElementById('search-followers-min-input');
+    var fMaxInput  = document.getElementById('search-followers-max-input');
+    var fHiddenMin = document.getElementById('search-followers-min');
+    var fHiddenMax = document.getElementById('search-followers-max');
+
+    // hidden input 値（AI検索から直接セットされることもある）
+    var followersMin = fHiddenMin ? fHiddenMin.value : '';
+    var followersMax = fHiddenMax ? fHiddenMax.value : '';
+    // 手入力を最優先
+    if (fMinInput && fMinInput.value !== '') followersMin = fMinInput.value;
+    else if (fMinPreset && fMinPreset.value !== '') followersMin = fMinPreset.value;
+    if (fMaxInput && fMaxInput.value !== '') followersMax = fMaxInput.value;
+    else if (fMaxPreset && fMaxPreset.value !== '') followersMax = fMaxPreset.value;
+
+    // 年齢
+    var aMinPreset = document.getElementById('search-age-min-preset');
+    var aMaxPreset = document.getElementById('search-age-max-preset');
+    var aMinInput  = document.getElementById('search-age-min-input');
+    var aMaxInput  = document.getElementById('search-age-max-input');
+    var ageMin = '';
+    var ageMax = '';
+    if (aMinInput && aMinInput.value !== '') ageMin = aMinInput.value;
+    else if (aMinPreset && aMinPreset.value !== '') ageMin = aMinPreset.value;
+    if (aMaxInput && aMaxInput.value !== '') ageMax = aMaxInput.value;
+    else if (aMaxPreset && aMaxPreset.value !== '') ageMax = aMaxPreset.value;
+
+    return {
+      followersMin: followersMin,
+      followersMax: followersMax,
+      ageMin: ageMin,
+      ageMax: ageMax,
+      location: (document.getElementById('search-location') || {}).value || '',
+      owner:    (document.getElementById('search-owner')    || {}).value || '',
+      platform: (document.getElementById('search-platform') || {}).value || '',
+      agency:   (document.getElementById('search-agency')   || {}).value || ''
+    };
   }
 
   function doSearch() {
     showLoading('search-loading');
     document.getElementById('search-empty').classList.add('hidden');
-    
-    // 選択状態をリセット
-    state.selectedPeople = [];
-    updateExportButtonVisibility();
-    var checkAll = document.getElementById('check-all-results');
-    if (checkAll) checkAll.checked = false;
 
+    var adv = getAdvancedFilterValues();
     var params = {
       keyword:          document.getElementById('search-keyword').value,
       category:         document.getElementById('search-category').value,
-      followersMin:     _toFollowerVal((document.getElementById('search-followers-min-input') || {}).value || ''),
-      followersMax:     _toFollowerVal((document.getElementById('search-followers-max-input') || {}).value || ''),
-      tag:              (document.getElementById('search-tag') || {}).value || '',
-      heightMin:        (document.getElementById('search-height-min') || {}).value || '',
-      heightMax:        (document.getElementById('search-height-max') || {}).value || '',
-      ageMin:           (document.getElementById('search-age-min') || {}).value || '',
-      ageMax:           (document.getElementById('search-age-max') || {}).value || '',
-      location:         (document.getElementById('search-location') || {}).value || '',
-      owner:            (document.getElementById('search-owner') || {}).value || '',
-      platform:         (document.getElementById('search-platform') || {}).value || '',
-      agency:           (document.getElementById('search-agency') || {}).value || '',
+      status:           document.getElementById('search-status').value,
+      priority:         document.getElementById('search-priority').value,
+      followersMin:     adv.followersMin,
+      followersMax:     adv.followersMax,
+      ageMin:           adv.ageMin,
+      ageMax:           adv.ageMax,
+      location:         adv.location,
+      owner:            adv.owner,
+      platform:         adv.platform,
+      agency:           adv.agency,
       nextActionFilter: state.nextActionFilter,
       page:             state.searchPage,
       pageSize:         state.searchPageSize
@@ -416,56 +547,41 @@
         var r = data.results[i];
         var tr = document.createElement('tr');
         tr.setAttribute('data-person-id', r.person_id);
+        tr.rowData = r; // store full data for export
         if (r.person_id === state.currentPersonId) tr.classList.add('selected');
+        
+        var isChecked = !!state.checkedPeople[r.person_id];
 
         tr.innerHTML =
-          '<td><input type="checkbox" class="row-checkbox" data-index="' + i + '"></td>' +
+          '<td style="text-align:center;"><input type="checkbox" class="row-checkbox" value="' + escapeHtml(r.person_id) + '" ' + (isChecked ? 'checked' : '') + '></td>' +
           '<td><strong>' + escapeHtml(r['名前']) + '</strong></td>' +
           '<td><span class="badge badge-primary">' + escapeHtml(r['区分']) + '</span></td>' +
           '<td>' + escapeHtml(r['ユーザー名']) + '</td>' +
           '<td class="text-right">' + escapeHtml(String(r['フォロワー数'] || '')) + '</td>' +
+          '<td><span class="badge ' + getStatusBadgeClass(r['ステータス']) + '">' + escapeHtml(r['ステータス'] || '—') + '</span></td>' +
+          '<td><span class="badge ' + getPriorityBadgeClass(r['優先度']) + '">' + escapeHtml(r['優先度'] || '—') + '</span></td>' +
           '<td>' + escapeHtml(r['担当（社内）']) + '</td>' +
           '<td>' + escapeHtml(r['次アクション日']) + '</td>';
 
-        // 行クリック（詳細表示）
-        tr.addEventListener('click', (function(pid) {
-          return function(e) {
-            if (e.target.type === 'checkbox') return; // チェックボックスクリック時は詳細を開かない
-            openPersonDetail(pid);
-          };
-        })(r.person_id));
-        
-        // チェックボックスの変更イベント
+        // Checkbox click listener
         var chk = tr.querySelector('.row-checkbox');
-        chk.addEventListener('change', function() {
-          var idx = parseInt(this.getAttribute('data-index'), 10);
-          var person = data.results[idx];
-          if (this.checked) {
-            state.selectedPeople.push(person);
+        chk.addEventListener('change', function(e) {
+          var pid = e.target.value;
+          if (e.target.checked) {
+            state.checkedPeople[pid] = r;
           } else {
-            state.selectedPeople = state.selectedPeople.filter(function(p) { return p.person_id !== person.person_id; });
+            delete state.checkedPeople[pid];
           }
-          updateExportButtonVisibility();
+        });
+        chk.addEventListener('click', function(e) {
+          e.stopPropagation(); // prevent opening detail pane
         });
 
-        tbody.appendChild(tr);
-      }
+        tr.addEventListener('click', (function(pid) {
+          return function() { openPersonDetail(pid); };
+        })(r.person_id));
 
-      // 全選択チェックボックス
-      var checkAll = document.getElementById('check-all-results');
-      if (checkAll) {
-        checkAll.onclick = function() {
-          var checkboxes = document.querySelectorAll('.row-checkbox');
-          state.selectedPeople = [];
-          for (var c = 0; c < checkboxes.length; c++) {
-            checkboxes[c].checked = this.checked;
-            if (this.checked) {
-              var idx = parseInt(checkboxes[c].getAttribute('data-index'), 10);
-              state.selectedPeople.push(data.results[idx]);
-            }
-          }
-          updateExportButtonVisibility();
-        };
+        tbody.appendChild(tr);
       }
 
       // ページング
@@ -473,83 +589,42 @@
       if (data.total > data.pageSize) {
         pagination.style.display = 'flex';
         var totalPages = Math.ceil(data.total / data.pageSize);
-        
-        // ジャンプ入力の更新
-        var jumpInput = document.getElementById('input-jump-page');
-        var totalLabel = document.getElementById('pagination-total-pages');
-        if (jumpInput) jumpInput.value = data.page;
-        if (totalLabel) totalLabel.textContent = '/ ' + totalPages;
-        
-        document.getElementById('pagination-info').textContent = '（全' + data.total + '件）';
+        document.getElementById('pagination-info').textContent =
+          'ページ ' + data.page + ' / ' + totalPages + '（全' + data.total + '件）';
 
         var prevBtn = document.getElementById('btn-prev-page');
         var nextBtn = document.getElementById('btn-next-page');
-        var jumpBtn = document.getElementById('btn-jump-page');
-
         prevBtn.disabled = data.page <= 1;
         nextBtn.disabled = data.page >= totalPages;
 
         prevBtn.onclick = function() { state.searchPage--; doSearch(); };
         nextBtn.onclick = function() { state.searchPage++; doSearch(); };
-        
-        // ジャンプ機能
-        var handleJump = function() {
-          var target = parseInt(jumpInput.value, 10);
-          if (isNaN(target) || target < 1) target = 1;
-          if (target > totalPages) target = totalPages;
-          if (target === state.searchPage) return;
-          state.searchPage = target;
-          doSearch();
-        };
-        jumpBtn.onclick = handleJump;
-        jumpInput.onkeypress = function(e) { if (e.key === 'Enter') handleJump(); };
 
+        var inputJump = document.getElementById('input-page-jump');
+        var btnJump = document.getElementById('btn-jump-page');
+        if (inputJump && btnJump) {
+          inputJump.value = data.page;
+          inputJump.max = totalPages;
+          btnJump.onclick = function() {
+            var target = parseInt(inputJump.value, 10);
+            if (target >= 1 && target <= totalPages) {
+              state.searchPage = target;
+              doSearch();
+            } else {
+              showToast('無効なページ番号です', 'warning');
+              inputJump.value = data.page; // revert
+            }
+          };
+          inputJump.onkeypress = function(e) {
+            if (e.key === 'Enter') btnJump.click();
+          };
+        }
       } else {
         pagination.style.display = 'none';
       }
     }, function() {
       hideLoading('search-loading');
     });
-  }
-
-  function updateExportButtonVisibility() {
-    var btn = document.getElementById('btn-export-csv');
-    if (!btn) return;
-    if (state.selectedPeople.length > 0) {
-      btn.style.display = 'block';
-      btn.textContent = '📥 ' + state.selectedPeople.length + '件をCSV出力';
-    } else {
-      btn.style.display = 'none';
-    }
-  }
-
-  function exportSelectedToCSV() {
-    if (state.selectedPeople.length === 0) return;
-
-    var headers = ["名前", "区分", "ユーザー名", "URL", "フォロワー数", "所在地", "サブカテゴリ", "タグ", "ステータス", "優先度", "担当（社内）", "次アクション日"];
-    var csvContent = "\ufeff"; // BOM for Excel
-    csvContent += headers.join(",") + "\n";
-
-    state.selectedPeople.forEach(function(p) {
-      var row = headers.map(function(h) {
-        var val = p[h] || "";
-        // カンマや改行を含む場合はダブルクォートで囲む
-        var str = String(val).replace(/"/g, '""');
-        if (str.search(/("|,|\n)/g) >= 0) str = '"' + str + '"';
-        return str;
-      });
-      csvContent += row.join(",") + "\n";
-    });
-
-    var blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    var url = URL.createObjectURL(blob);
-    var link = document.createElement("a");
-    link.setAttribute("href", url);
-    link.setAttribute("download", "exported_people_" + new Date().getTime() + ".csv");
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
   }
 
   // ─── 新規人物登録モーダル ────────────────────────────────
@@ -660,10 +735,63 @@
       for (var j = 0; j < rows2.length; j++) rows2[j].classList.remove('selected');
     });
 
-    // 基本情報編集ボタン
-    document.getElementById('btn-edit-basic-info').addEventListener('click', function() {
-      openEditBasicInfoModal(personId);
-    });
+    // AI情報自動補完ボタン
+    var btnAiEnrich = document.getElementById('btn-ai-enrich');
+    if (btnAiEnrich) {
+      btnAiEnrich.addEventListener('click', function() {
+        var personName = document.getElementById('detail-person-name').textContent;
+        if (!personName || personName === '—') return;
+        
+        var originalText = btnAiEnrich.innerHTML;
+        btnAiEnrich.innerHTML = '<span class="spinner" style="width:12px;height:12px;margin-right:4px;"></span> 検索・抽出中...';
+        btnAiEnrich.disabled = true;
+        
+        callServer('autoEnrichPerson', [{name: personName}], function(res) {
+          btnAiEnrich.innerHTML = originalText;
+          btnAiEnrich.disabled = false;
+          
+          if (res.success) {
+            var data = res.data;
+            var msg = '【AI抽出結果】\n\n';
+            for (var k in data) {
+              msg += k + ': ' + (data[k] || '（なし）') + '\n';
+            }
+            msg += '\n※これらの情報を自動で保存しますか？（メモ欄等に追記するか、対応する項目を更新します）';
+            
+            if (confirm(msg)) {
+               var patch = {};
+               if (data['ジャンル']) patch['サブカテゴリ'] = data['ジャンル'];
+               if (data['事務所']) patch['所属事務所'] = data['事務所'];
+               if (data['X']) patch['X (Twitter)'] = data['X'];
+               if (data['YouTube']) patch['YouTube'] = data['YouTube'];
+               if (data['Instagram']) patch['Instagram'] = data['Instagram'];
+               if (data['TikTok']) patch['TikTok'] = data['TikTok'];
+               if (data['居住地']) patch['居住地'] = data['居住地'];
+               if (data['出身']) patch['出身'] = data['出身'];
+               if (data['性別']) patch['性別'] = data['性別'];
+               
+               var currentMemo = document.getElementById('crm-memo').value || '';
+               var aiMemo = "--- AI自動取得情報 ---\n" + JSON.stringify(data, null, 2);
+               if (data['画像URL']) {
+                 aiMemo += "\n\n画像URL: " + data['画像URL'];
+               }
+               patch['メモ'] = currentMemo ? currentMemo + '\n' + aiMemo : aiMemo;
+               
+               callServer('updatePerson', [personId, patch], function(updateRes) {
+                 if (updateRes.success) {
+                   showToast('AIの情報をスプレッドシートに反映しました', 'success');
+                   loadPersonData(personId);
+                 } else {
+                   showToast('保存に失敗しました: ' + updateRes.message, 'error');
+                 }
+               });
+            }
+          } else {
+            showToast('AI取得エラー: ' + res.message, 'error');
+          }
+        });
+      });
+    }
 
     // データ取得
     loadPersonData(personId);
@@ -677,6 +805,17 @@
 
       var d = res.data.data;
       document.getElementById('detail-person-name').textContent = d['名前'] || d[Object.keys(d)[0]] || '—';
+
+      // 画像URLがメモにあればアバター表示
+      var avatar = document.getElementById('detail-person-avatar');
+      var memoText = d['メモ'] || '';
+      var imgMatch = memoText.match(/画像URL:\s*(https?:\/\/[^\s]+)/);
+      if (imgMatch && imgMatch[1]) {
+        avatar.src = imgMatch[1];
+        avatar.style.display = 'block';
+      } else {
+        avatar.style.display = 'none';
+      }
 
       // 基本情報を描画（スプレッドシートの全項目を動的に表示、CRM情報パネルと重複する項目は除外）
       var basicInfo = document.getElementById('detail-basic-info');
@@ -730,10 +869,6 @@
       setInputValue('crm-next-action-date', d['次アクション日']);
       setInputValue('crm-next-action', d['次アクション内容']);
       setInputValue('crm-memo', d['メモ']);
-
-      // 基本情報キーをstateに保持（編集モーダルで使用）
-      state.currentPersonData = d;
-      state.currentPersonBasicKeys = basicKeys;
     });
   }
 
@@ -765,126 +900,6 @@
         timeline.appendChild(item);
       }
       container.appendChild(timeline);
-    });
-  }
-
-  // ─── 基本情報編集モーダル ──────────────────────────────────
-  function openEditBasicInfoModal(personId) {
-    var tpl = document.getElementById('tpl-modal-edit-basic-info');
-    if (!tpl) return;
-    var clone = document.importNode(tpl.content, true);
-    document.body.appendChild(clone);
-
-    var backdrop = document.getElementById('modal-backdrop-edit-basic');
-    var fieldsContainer = document.getElementById('edit-basic-info-fields');
-
-    // 現在の基本情報をフォームに欲集
-    var currentData = state.currentPersonData || {};
-    var basicKeys = state.currentPersonBasicKeys || [];
-
-    // 除外するキー（CRM情報と内部管理キー）
-    var excludeKeys = [
-      'person_id', '_row', 'source_sheet', 'source_row', '_search_text',
-      'ステータス', '最終接触日', '次アクション日', '次アクション内容',
-      '優先度', '社内担当', '担当（社内）', 'メモ'
-    ];
-
-    // すべてのキーを列挙（basicKeysが空の場合はcurrentDataの全キーを使用）
-    var allKeys = basicKeys.length > 0 ? basicKeys : Object.keys(currentData).filter(function(k) {
-      return k && k.indexOf('col_') !== 0 && excludeKeys.indexOf(k) === -1;
-    });
-
-    fieldsContainer.innerHTML = '';
-    for (var i = 0; i < allKeys.length; i++) {
-      var key = allKeys[i];
-      if (excludeKeys.indexOf(key) !== -1) continue;
-      var val = currentData[key] !== undefined ? currentData[key] : '';
-      var row = document.createElement('div');
-      row.className = 'form-row';
-      row.style.marginBottom = '8px';
-      row.innerHTML =
-        '<div class="form-group" style="flex:1; margin-bottom:0;">' +
-          '<label class="form-label" style="font-size:11px; color:var(--gray-500);">' + escapeHtml(key) + '</label>' +
-          '<input type="text" class="form-control basic-edit-field" data-key="' + escapeHtml(key) + '" value="' + escapeHtml(String(val)) + '">' +
-        '</div>';
-      fieldsContainer.appendChild(row);
-    }
-
-    // もしフィールドが0件ならその旨を传える
-    if (fieldsContainer.children.length === 0) {
-      fieldsContainer.innerHTML = '<p class="text-muted" style="padding:8px 0;">表示できる基本情報がありません。下の「項目を追加」から新たに追加できます。</p>';
-    }
-
-    // キャンセル
-    document.getElementById('btn-cancel-edit-basic').addEventListener('click', function() {
-      backdrop.remove();
-    });
-    backdrop.addEventListener('click', function(e) {
-      if (e.target === backdrop) backdrop.remove();
-    });
-
-    // カスタム項目追加
-    var btnAddCustom = document.getElementById('btn-add-basic-custom-field');
-    var customContainer = document.getElementById('basic-custom-fields-container');
-    if (btnAddCustom && customContainer) {
-      btnAddCustom.addEventListener('click', function() {
-        var newRow = document.createElement('div');
-        newRow.className = 'form-row basic-custom-row';
-        newRow.style.marginBottom = '8px';
-        newRow.innerHTML =
-          '<div class="form-group" style="flex:1; margin-bottom:0;">' +
-            '<input type="text" class="form-control basic-custom-key" placeholder="項目名">' +
-          '</div>' +
-          '<div class="form-group" style="flex:2; margin-bottom:0;">' +
-            '<input type="text" class="form-control basic-custom-val" placeholder="内容">' +
-          '</div>' +
-          '<div style="display:flex; align-items:flex-end; padding-bottom:0;">' +
-            '<button type="button" class="btn btn-sm btn-danger btn-rm-basic" style="padding:4px 8px;">×</button>' +
-          '</div>';
-        newRow.querySelector('.btn-rm-basic').addEventListener('click', function() { newRow.remove(); });
-        customContainer.appendChild(newRow);
-      });
-    }
-
-    // フォーム送信（スプレッドシートに保存）
-    document.getElementById('edit-basic-info-form').addEventListener('submit', function(e) {
-      e.preventDefault();
-      var patch = {};
-
-      // 既存フィールドの値を収集
-      var fields = document.querySelectorAll('.basic-edit-field');
-      for (var f = 0; f < fields.length; f++) {
-        var key = fields[f].getAttribute('data-key');
-        if (key) patch[key] = fields[f].value;
-      }
-
-      // カスタム項目の値を収集
-      var customRows = document.querySelectorAll('.basic-custom-row');
-      for (var c = 0; c < customRows.length; c++) {
-        var k = customRows[c].querySelector('.basic-custom-key').value.trim();
-        var v = customRows[c].querySelector('.basic-custom-val').value;
-        if (k) patch[k] = v;
-      }
-
-      if (Object.keys(patch).length === 0) {
-        showToast('変更する項目がありません', 'warning');
-        return;
-      }
-
-      var btnSubmit = this.querySelector('button[type="submit"]');
-      if (btnSubmit) { btnSubmit.disabled = true; btnSubmit.textContent = '保存中...'; }
-
-      callServer('updatePerson', [personId, patch], function(res) {
-        if (btnSubmit) { btnSubmit.disabled = false; btnSubmit.innerHTML = '\ud83d\udcbe 保存'; }
-        if (res.success) {
-          showToast('基本情報をスプレッドシートに保存しました', 'success');
-          backdrop.remove();
-          // 当該人物の基本情報を再読み込み
-          loadPersonData(personId);
-        } else {
-          showToast(res.message, 'error');
-        }
-      });
     });
   }
 
@@ -1326,6 +1341,180 @@
       }
     }
     el.selectedIndex = 0;
+  }
+
+  // ─── 一括AI補完ロジック ────────────────────────────────
+  var batchEnrichState = {
+    isRunning: false,
+    targetCount: 0,
+    processedCount: 0,
+    stopRequested: false
+  };
+
+  function initBatchEnrich() {
+    var btnBatch = document.getElementById('btn-batch-enrich');
+    if (!btnBatch) return;
+    
+    btnBatch.addEventListener('click', function() {
+      // テンプレートからモーダルをDOMに追加（まだなければ）
+      if (!document.getElementById('modal-backdrop-batch-enrich')) {
+        var tpl = document.getElementById('tpl-modal-batch-enrich');
+        if (!tpl) return;
+        var clone = document.importNode(tpl.content, true);
+        document.body.appendChild(clone);
+        // モーダルが追加された後にボタンのリスナーを登録
+        function closeBatchModal() {
+          var m = document.getElementById('modal-backdrop-batch-enrich');
+          if (m) m.style.display = 'none';
+        }
+        document.getElementById('btn-cancel-batch-enrich').addEventListener('click', closeBatchModal);
+        document.getElementById('btn-close-batch-enrich').addEventListener('click', function() {
+          closeBatchModal();
+          doSearch();
+        });
+        document.getElementById('btn-stop-batch-enrich').addEventListener('click', function() {
+          if (batchEnrichState.isRunning) {
+            batchEnrichState.stopRequested = true;
+            logBatchEnrich('<span style="color:red;">停止リクエストを受け付けました。現在の処理が終わり次第停止します...</span>');
+          } else {
+            closeBatchModal();
+          }
+        });
+        document.getElementById('btn-start-batch-enrich').addEventListener('click', function() {
+          var count = parseInt(document.getElementById('batch-enrich-count').value, 10);
+          if (!count || count < 1) {
+            alert('正しい件数を入力してください');
+            return;
+          }
+          batchEnrichState.targetCount = count;
+          batchEnrichState.processedCount = 0;
+          batchEnrichState.stopRequested = false;
+          batchEnrichState.isRunning = true;
+          document.getElementById('batch-enrich-setup').classList.add('hidden');
+          document.getElementById('batch-enrich-progress').classList.remove('hidden');
+          logBatchEnrich('処理を開始します... 対象: ' + count + '件');
+          updateBatchProgress();
+          processNextBatchEnrich();
+        });
+      }
+      
+      // モーダルをリセットして表示
+      document.getElementById('batch-enrich-setup').classList.remove('hidden');
+      document.getElementById('batch-enrich-progress').classList.add('hidden');
+      document.getElementById('batch-enrich-log').innerHTML = '';
+      document.getElementById('batch-enrich-progress-bar').style.width = '0%';
+      document.getElementById('btn-close-batch-enrich').classList.add('hidden');
+      document.getElementById('btn-stop-batch-enrich').classList.remove('hidden');
+      document.getElementById('modal-backdrop-batch-enrich').style.display = 'flex';
+    });
+  }
+  
+  function logBatchEnrich(msg) {
+    var logger = document.getElementById('batch-enrich-log');
+    if (!logger) return;
+    var d = new Date();
+    var time = ('0'+d.getHours()).slice(-2) + ':' + ('0'+d.getMinutes()).slice(-2) + ':' + ('0'+d.getSeconds()).slice(-2);
+    logger.innerHTML += '<div><span style="color:#aaa;">['+time+']</span> ' + msg + '</div>';
+    logger.scrollTop = logger.scrollHeight;
+  }
+  
+  function updateBatchProgress() {
+    var pct = Math.min(100, Math.floor((batchEnrichState.processedCount / batchEnrichState.targetCount) * 100));
+    document.getElementById('batch-enrich-progress-bar').style.width = pct + '%';
+    document.getElementById('batch-enrich-status-text').innerText = '処理中... ' + batchEnrichState.processedCount + ' / ' + batchEnrichState.targetCount + '件完了';
+  }
+  
+  function finishBatchEnrich(msg) {
+    batchEnrichState.isRunning = false;
+    logBatchEnrich('<b>' + msg + '</b>');
+    document.getElementById('btn-stop-batch-enrich').classList.add('hidden');
+    document.getElementById('btn-close-batch-enrich').classList.remove('hidden');
+  }
+  
+  function processNextBatchEnrich() {
+    if (batchEnrichState.stopRequested) {
+      finishBatchEnrich('ユーザーによって処理が中止されました。');
+      return;
+    }
+    if (batchEnrichState.processedCount >= batchEnrichState.targetCount) {
+      finishBatchEnrich('指定された件数（' + batchEnrichState.targetCount + '件）の処理が完了しました！');
+      return;
+    }
+    
+    var rows = document.querySelectorAll('#search-results-body tr:not(.ai-processed)');
+    if (rows.length === 0) {
+      logBatchEnrich('このページの対象がなくなりました。次のページに移動します...');
+      var btnNext = document.getElementById('btn-next-page');
+      if (btnNext && !btnNext.disabled && btnNext.parentElement.parentElement.style.display !== 'none') {
+        btnNext.click();
+        setTimeout(processNextBatchEnrich, 3000);
+      } else {
+        finishBatchEnrich('最後のページに到達したため、処理を終了します。');
+      }
+      return;
+    }
+    
+    var targetRow = rows[0];
+    var personId = targetRow.getAttribute('data-person-id');
+    var personName = targetRow.cells[1] ? targetRow.cells[1].innerText.trim() : '';
+    
+    targetRow.classList.add('ai-processed');
+    
+    logBatchEnrich('対象: <b>' + personName + '</b> の情報を検索中...');
+    
+    callServer('autoEnrichPerson', [{name: personName}], function(res) {
+      if (!res.success) {
+        // 429レート制限エラーの場合はリトライ（同じ人物をやり直す）
+        if (res.message && res.message.indexOf('429') !== -1) {
+          logBatchEnrich('<span style="color:orange;">⚠️ APIレート制限に達しました。60秒待機してリトライします...</span>');
+          targetRow.classList.remove('ai-processed'); // リトライのためフラグを外す
+          setTimeout(processNextBatchEnrich, 60000);
+        } else {
+          logBatchEnrich('<span style="color:red;">エラー: ' + res.message + '</span>');
+          goToNextWithDelay();
+        }
+        return;
+      }
+      
+      var data = res.data;
+      var patch = {};
+      if (data['ジャンル']) patch['サブカテゴリ'] = data['ジャンル'];
+      if (data['事務所']) patch['所属事務所'] = data['事務所'];
+      if (data['X']) patch['X (Twitter)'] = data['X'];
+      if (data['YouTube']) patch['YouTube'] = data['YouTube'];
+      if (data['Instagram']) patch['Instagram'] = data['Instagram'];
+      if (data['TikTok']) patch['TikTok'] = data['TikTok'];
+      if (data['居住地']) patch['居住地'] = data['居住地'];
+      if (data['出身']) patch['出身'] = data['出身'];
+      if (data['性別']) patch['性別'] = data['性別'];
+      
+      var currentMemo = targetRow.rowData && targetRow.rowData['メモ'] ? targetRow.rowData['メモ'] : '';
+      if (data['画像URL']) {
+        patch['メモ'] = currentMemo ? currentMemo + '\n\n画像URL: ' + data['画像URL'] : '画像URL: ' + data['画像URL'];
+      }
+      
+      logBatchEnrich('<span style="color:green;">抽出成功。スプレッドシートへ保存中...</span>');
+      
+      callServer('updatePerson', [personId, patch], function(updateRes) {
+        if (updateRes.success) {
+          logBatchEnrich('<span style="color:blue;">保存完了！</span>');
+        } else {
+          logBatchEnrich('<span style="color:red;">保存エラー: ' + updateRes.message + '</span>');
+        }
+        batchEnrichState.processedCount++;
+        updateBatchProgress();
+        goToNextWithDelay();
+      });
+      
+    }, function(err) {
+      logBatchEnrich('<span style="color:red;">ネットワークエラー等で失敗しました</span>');
+      goToNextWithDelay();
+    });
+  }
+  
+  function goToNextWithDelay() {
+    logBatchEnrich('API制限を避けるため約12秒待機します...');
+    setTimeout(processNextBatchEnrich, 12000);
   }
 
 })();
