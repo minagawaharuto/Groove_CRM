@@ -29,7 +29,11 @@ if os.path.exists(env_path):
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-&!t(j75!-p78=blk!@_1vf)y_3*&-m8)=)z@2(5+$^h(*hhupy'
+# SECRET_KEY は .env ファイルの DJANGO_SECRET_KEY から読み込む
+SECRET_KEY = os.environ.get(
+    'DJANGO_SECRET_KEY',
+    'django-insecure-fallback-key-change-in-production'
+)
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
